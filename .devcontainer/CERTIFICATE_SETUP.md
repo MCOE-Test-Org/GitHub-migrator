@@ -510,9 +510,9 @@ openssl x509 -inform der -in certificate.cer -outform pem -out certificate.crt
 csplit -f cert- ca-bundle.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
 
 # Rename and move to certs directory:
-mkdir -p ~/.devcontainer/certs
-mv cert-01 ~/.devcontainer/certs/root-ca.crt
-mv cert-02 ~/.devcontainer/certs/intermediate-ca.crt
+mkdir -p .devcontainer/corporate-certs
+mv cert-01 .devcontainer/corporate-certs/root-ca.crt
+mv cert-02 .devcontainer/corporate-certs/intermediate-ca.crt
 ```
 
 Or keep as a single file - both approaches work.
