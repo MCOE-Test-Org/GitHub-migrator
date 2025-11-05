@@ -39,7 +39,7 @@ This directory contains the configuration for running the GitHub Migrator projec
 ## 📦 What's Included
 
 ### Base Image
-- **Go 1.23** (Debian Bookworm-based)
+- **Go 1.25** (Debian Bookworm-based)
 - **Node.js 20** (via devcontainer feature)
 - **GitHub CLI** (via devcontainer feature)
 
