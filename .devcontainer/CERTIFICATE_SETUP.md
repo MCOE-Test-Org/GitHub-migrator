@@ -621,9 +621,9 @@ If your organization stores certificates elsewhere:
 # Copy from custom location
 cp /path/to/corporate/certs/*.crt .devcontainer/corporate-certs/
 
-# Or create symlinks (not recommended for cross-platform)
-ln -s /path/to/certs .devcontainer/corporate-certs
-```
+# Note: Do not use symlinks. The Dockerfile requires `.devcontainer/corporate-certs` to be a real directory with certificate files inside.
+# Only copying files is supported:
+# cp /path/to/certs/*.crt .devcontainer/corporate-certs/
 
 ### Automated Certificate Export Script
 
