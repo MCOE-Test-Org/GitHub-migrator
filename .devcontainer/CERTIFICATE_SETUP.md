@@ -412,8 +412,6 @@ openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
 
 ### Issue: "SSL certificate problem: self-signed certificate in certificate chain"
 
-### Issue: "SSL certificate problem: self-signed certificate in certificate chain"
-
 **Cause**: Missing corporate certificate or SSL inspection proxy certificate
 
 **Solutions**:
