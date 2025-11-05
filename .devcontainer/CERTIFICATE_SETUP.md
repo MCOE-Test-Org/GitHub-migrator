@@ -217,8 +217,6 @@ The Dockerfile will automatically:
 
 ### Architecture
 
-### Architecture
-
 The devcontainer uses a **multi-stage approach**:
 
 1. **Dockerfile Build Phase**:
