@@ -47,6 +47,14 @@ configs/config.local.yaml
 *~
 .DS_Store
 
+# DevContainer - Certificates and sensitive files (NEVER commit these!)
+.devcontainer/certs/
+.devcontainer/corporate-certs/
+.devcontainer/**/*.crt
+.devcontainer/**/*.pem
+.devcontainer/**/*.key
+**/.devcontainer/certs/
+
 # Frontend
 web/node_modules/
 web/dist/
