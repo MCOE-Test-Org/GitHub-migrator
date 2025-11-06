@@ -55,7 +55,7 @@ RUN if [ "$TERRAFORM_VERSION" = "latest" ]; then \
     wget -q "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" && \
     unzip terraform_${TF_VERSION}_linux_amd64.zip -d /usr/local/bin && \
     rm terraform_${TF_VERSION}_linux_amd64.zip && \
-    chmod +x /usr/local/bin/terraform && \
+    chmod +x /usr/local/bin/terraform
 # Install tflint (after certificates are set up)
 RUN if [ "$TFLINT_VERSION" = "latest" ]; then \
         TFL_VERSION=$(curl -s https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//'); \
