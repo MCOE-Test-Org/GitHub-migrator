@@ -66,19 +66,6 @@ openssl x509 -in .devcontainer/corporate-certs/root-ca.crt -text -noout
 
 ---
 
-**How to Identify Your Certificate Format:**
-
-```bash
-# View the file - if you see "BEGIN CERTIFICATE", it's PEM
-cat certificate.crt
-
-# If binary data appears, it's DER - convert it:
-openssl x509 -inform der -in certificate.cer -out certificate.crt
-
-# Verify the conversion worked:
-openssl x509 -in certificate.crt -text -noout
-```
-
 ---
 
 ## Certificate Format Requirements
