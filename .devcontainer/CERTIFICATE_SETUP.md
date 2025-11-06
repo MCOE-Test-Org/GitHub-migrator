@@ -640,6 +640,7 @@ cp /path/to/corporate/certs/*.crt .devcontainer/corporate-certs/
 # Note: Do not use symlinks. The Dockerfile requires `.devcontainer/corporate-certs` to be a real directory with certificate files inside.
 # Only copying files is supported:
 # cp /path/to/certs/*.crt .devcontainer/corporate-certs/
+```
 
 ### Automated Certificate Export Script
 
@@ -663,6 +664,7 @@ fi
 # Verify
 ls -la .devcontainer/corporate-certs/*.crt
 echo "✓ Certificates exported"
+```
 
 ### Disable SSL Verification (Emergency Only)
 
