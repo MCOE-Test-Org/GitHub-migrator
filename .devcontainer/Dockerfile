@@ -47,6 +47,10 @@ RUN TFLINT_VERSION=$(curl -s https://api.github.com/repos/terraform-linters/tfli
 
 # Install terragrunt (after certificates are set up)
 RUN TERRAGRUNT_VERSION=$(curl -s https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//') && \
+    if [ -z "$TERRAGRUNT_VERSION" ]; then \
+        echo "ERROR: Failed to fetch Terragrunt version from GitHub API. You may have hit a rate limit or the API response format has changed." >&2; \
+        exit 1; \
+    fi && \
     wget -q "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" -O /usr/local/bin/terragrunt && \
     chmod +x /usr/local/bin/terragrunt && \
     echo "terragrunt ${TERRAGRUNT_VERSION} installed"
