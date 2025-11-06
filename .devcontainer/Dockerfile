@@ -64,6 +64,8 @@ RUN if [ "$TFLINT_VERSION" = "latest" ]; then \
     fi && \
     if [ -z "$TFL_VERSION" ]; then \
         echo "ERROR: Failed to fetch TFLint version from GitHub API. You may have hit a rate limit or the API response format has changed." >&2; \
+        exit 1; \
+    fi && \
     wget -q "https://github.com/terraform-linters/tflint/releases/download/v${TFL_VERSION}/tflint_linux_amd64.zip" && \
     unzip tflint_linux_amd64.zip -d /usr/local/bin && \
     rm tflint_linux_amd64.zip && \
