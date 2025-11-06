@@ -67,8 +67,7 @@
   },
   "mounts": [
     "source=${localWorkspaceFolder}/data,target=/workspaces/GitHub-migrator/data,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/logs,target=/workspaces/GitHub-migrator/logs,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/corporate-certs,target=/usr/local/share/ca-certificates/corporate,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/logs,target=/workspaces/GitHub-migrator/logs,type=bind,consistency=cached"
   ],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteUser": "vscode",

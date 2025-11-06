@@ -1,711 +1,811 @@
-# Certificate and Proxy Configuration for DevContainers
+# Corporate SSL Certificate Setup for DevContainer
 
-This guide helps you configure the devcontainer to work with corporate proxies and self-signed SSL certificates.
+This guide provides detailed instructions for configuring corporate SSL certificates in the GitHub Migrator DevContainer environment. If your organization uses SSL inspection proxies (like Netskope, Zscaler, Cisco Umbrella, etc.), you must follow these steps before building the DevContainer.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [When Do You Need This?](#when-do-you-need-this)
+- [Quick Reference](#quick-reference)
+- [Windows Setup](#windows-setup)
+- [macOS Setup](#macos-setup)
+- [Verification](#verification)
+- [Troubleshooting](#troubleshooting)
+- [Advanced Configuration](#advanced-configuration)
 
 ## Overview
 
-This devcontainer uses a **custom Dockerfile** that installs corporate certificates during the image build process. This ensures that all devcontainer features (Node.js, GitHub CLI) and tools trust your corporate certificates from the start.
+Corporate SSL inspection proxies intercept HTTPS traffic by presenting their own certificates instead of the original website certificates. For the DevContainer to successfully download dependencies and communicate with external services, it needs to trust these corporate certificates.
 
-**Important**: Certificates are stored in `.devcontainer/corporate-certs/` which is **git-ignored** and must be set up locally by each developer.
+### How It Works
 
----
+1. You export corporate certificates from your host system
+2. Place certificates in `.devcontainer/corporate-certs/`
+3. The Dockerfile copies and installs them during container build
+4. All tools (Go, Node.js, Git, curl, etc.) trust the certificates
 
-## Quick Start Guide
+## When Do You Need This?
 
-### For macOS Users
+You need to set up corporate certificates if:
 
-```bash
-# 1. Create the corporate-certs directory
-mkdir -p .devcontainer/corporate-certs
+- ✅ You're behind a corporate proxy with SSL inspection
+- ✅ You see SSL/TLS certificate verification errors when downloading packages
+- ✅ `curl` or `wget` commands fail with certificate errors
+- ✅ Go module downloads fail with certificate validation errors
+- ✅ npm/Node.js package installations fail with certificate errors
+- ✅ Git operations over HTTPS fail with SSL errors
 
-# 2. Export your corporate certificates from Keychain
-# Replace "YourCompanyName" with your actual company name or certificate name
+You **don't** need this if:
 
-# Export root CA
-security find-certificate -c "Root CA" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/root-ca.crt
+- ❌ You're working from home without a corporate VPN
+- ❌ You're on a network without SSL inspection
+- ❌ Your organization doesn't intercept HTTPS traffic
 
-# Export SSL inspection proxy (Netskope, Zscaler, etc.)
-security find-certificate -c "netskope" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/proxy-ca.crt
+## Quick Reference
 
-# Export any intermediate CAs
-security find-certificate -c "Internal Certificate Authority" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/internal-ca.crt
-
-# 3. Verify certificates are in PEM format
-openssl x509 -in .devcontainer/corporate-certs/root-ca.crt -text -noout
-
-# 4. Rebuild devcontainer
-# In VS Code: Cmd+Shift+P → "Dev Containers: Rebuild Container"
-```
-
-### For Windows Users
+### Windows PowerShell (Run as Administrator)
 
 ```powershell
-# 1. Create the corporate-certs directory
-New-Item -ItemType Directory -Force -Path .devcontainer\corporate-certs
+# Create directory
+New-Item -Path ".devcontainer\corporate-certs" -ItemType Directory -Force
 
-# 2. Export certificates from Windows Certificate Store
-# Open Certificate Manager (certmgr.msc)
-# Navigate to: Trusted Root Certification Authorities → Certificates
-# Find your corporate certificates, right-click → All Tasks → Export
-# Choose "Base-64 encoded X.509 (.CER)" format
-# Save to: .devcontainer\corporate-certs\
+# List all root certificates
+Get-ChildItem -Path Cert:\CurrentUser\Root | Select-Object Subject, Thumbprint
 
-# 3. Rename files to .crt extension
-Rename-Item .devcontainer\corporate-certs\*.cer -NewName {$_.name -replace '\.cer$','.crt'}
-
-# 4. Verify certificate format
-# In PowerShell or Git Bash:
-openssl x509 -in .devcontainer/corporate-certs/root-ca.crt -text -noout
-
-# 5. Rebuild devcontainer
-# In VS Code: Ctrl+Shift+P → "Dev Containers: Rebuild Container"
+# Export specific certificate (replace Thumbprint)
+$cert = Get-ChildItem -Path Cert:\CurrentUser\Root | Where-Object {$_.Thumbprint -eq "YOUR_THUMBPRINT"}
+[System.IO.File]::WriteAllBytes(".devcontainer\corporate-certs\corporate-root.crt", $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
 ```
 
----
-
----
-
-## Certificate Format Requirements
-
-**Accepted Formats:**
-
-- **PEM** (Privacy Enhanced Mail) - Text format, Base64 encoded
-
-  - Extensions: `.crt`, `.pem`, `.cer`
-  - Starts with: `-----BEGIN CERTIFICATE-----`
-  - Ends with: `-----END CERTIFICATE-----`
-  - ✅ This is the REQUIRED format for the devcontainer
-
-- **DER** (Distinguished Encoding Rules) - Binary format
-  - Extensions: `.cer`, `.der`
-  - Binary file (not human-readable)
-  - ❌ Must be converted to PEM for container use
-
-**Certificate File Naming:**
-
-- Files MUST have `.crt` extension (e.g., `corporate-ca.crt`)
-- Multiple certificates can be stored as separate files
-- All `.crt` files in `.devcontainer/corporate-certs/` will be installed
-
-**How to Identify Your Certificate Format:**
+### macOS Terminal
 
 ```bash
-# View the file - if you see "BEGIN CERTIFICATE", it's PEM
-cat .devcontainer/corporate-certs/certificate.crt
+# Create directory
+mkdir -p .devcontainer/corporate-certs
 
-# If binary data appears, it's DER - convert it:
-openssl x509 -inform der -in certificate.cer -out certificate.crt
+# List all certificates
+security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain
+security find-certificate -a -p /Library/Keychains/System.keychain
 
-# Verify the conversion worked:
-openssl x509 -in certificate.crt -text -noout
+# Export specific certificate
+security find-certificate -c "Your Certificate Name" -a -p > .devcontainer/corporate-certs/corporate-root.crt
 ```
 
 ---
 
-## Detailed Setup Instructions
+## Windows Setup
 
-### Step 1: Identify Required Certificates
+### Step 1: Identify Corporate Certificates
 
-You typically need these certificates from your organization:
+#### Method A: Using PowerShell (Recommended)
 
-1. **Root CA Certificate** - The top-level certificate authority
-2. **Intermediate CA Certificate(s)** - Middle certificates in the chain
-3. **SSL Inspection Proxy Certificate** - If using Netskope, Zscaler, etc.
+1. **Open PowerShell as Administrator:**
 
-**How to find them:**
+   - Press `Win + X`
+   - Select "Windows PowerShell (Admin)" or "Terminal (Admin)"
 
-- **macOS**: Open Keychain Access → System → Certificates
-- **Windows**: Run `certmgr.msc` → Trusted Root Certification Authorities
-- Look for certificates issued by your company name
+2. **List all certificates in the Trusted Root store:**
+
+   ```powershell
+   Get-ChildItem -Path Cert:\CurrentUser\Root | Select-Object Subject, Issuer, Thumbprint, FriendlyName | Format-Table -AutoSize
+   ```
+
+3. **Look for your organization's certificates.** Common names include:
+
+   - Netskope
+   - Zscaler
+   - Cisco Umbrella
+   - Your company name
+   - "Root CA" or "Intermediate CA"
+
+4. **Note the certificate's Subject or Thumbprint** for export.
+
+#### Method B: Using Certificate Manager GUI
+
+1. **Open Certificate Manager:**
+
+   - Press `Win + R`
+   - Type: `certmgr.msc`
+   - Press Enter
+
+2. **Navigate to certificates:**
+
+   - Expand "Trusted Root Certification Authorities"
+   - Click "Certificates"
+
+3. **Find corporate certificates:**
+   - Look for certificates issued by your organization or proxy vendor
+   - Double-click to view details
 
 ### Step 2: Export Certificates
 
-#### macOS - Export from Keychain
+#### Method A: PowerShell Export (Recommended)
 
-```bash
-# List all certificates to find the right names
-security find-certificate -a /Library/Keychains/System.keychain | grep "labl"
+1. **Create the certificate directory:**
 
-# Export specific certificate by name
-security find-certificate -c "Certificate Name" -p \
-  /Library/Keychains/System.keychain > .devcontainer/corporate-certs/cert-name.crt
-
-# Common examples:
-security find-certificate -c "Slalom" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/slalom-root-ca.crt
-
-security find-certificate -c "netskope" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/netskope-ca.crt
-```
-
-#### Windows - Export from Certificate Manager
-
-1. Press `Win+R`, type `certmgr.msc`, press Enter
-2. Navigate to **Trusted Root Certification Authorities** → **Certificates**
-3. Find your corporate certificate(s)
-4. Right-click → **All Tasks** → **Export**
-5. Click **Next**, select **Base-64 encoded X.509 (.CER)**
-6. Save to `.devcontainer\corporate-certs\`
-7. Rename from `.cer` to `.crt`:
    ```powershell
-   Rename-Item .devcontainer\corporate-certs\*.cer -NewName {$_.name -replace '\.cer$','.crt'}
+   New-Item -Path ".devcontainer\corporate-certs" -ItemType Directory -Force
    ```
 
-#### Linux - Export from System Store
+2. **Export by certificate name/subject:**
 
-```bash
-# Copy from system certificate directory
-sudo cp /etc/ssl/certs/your-company-ca.pem \
-  .devcontainer/corporate-certs/company-ca.crt
-
-# Or export from Firefox/Chrome certificates
-# Firefox: Settings → Privacy & Security → Certificates → View Certificates
-# Export as PEM format
-```
-
-### Step 3: Verify Certificate Format
-
-```bash
-# Should display certificate details (not binary data)
-openssl x509 -in .devcontainer/corporate-certs/your-cert.crt -text -noout
-
-# Check all certificates at once
-for cert in .devcontainer/corporate-certs/*.crt; do
-  echo "Checking $cert"
-  openssl x509 -in "$cert" -noout -subject -issuer
-done
-```
-
-### Step 4: Rebuild Devcontainer
-
-The Dockerfile will automatically:
-
-1. Copy all `.crt` files from `.devcontainer/corporate-certs/`
-2. Install them into the system trust store
-3. Configure environment variables for all tools
-
-**Rebuild the container:**
-
-- VS Code: `Cmd/Ctrl+Shift+P` → "Dev Containers: Rebuild Container"
-- Or: Delete container and reopen in container
-
----
-
-## How the Certificate Installation Works
-
-### Architecture
-
-The devcontainer uses a **multi-stage approach**:
-
-1. **Dockerfile Build Phase**:
-
-   ```dockerfile
-   # Copies certificates during image build
-   COPY .devcontainer/corporate-certs /tmp/corporate-certs-temp
-   RUN cp /tmp/corporate-certs-temp/*.crt /usr/local/share/ca-certificates/corporate/
-   RUN update-ca-certificates
+   ```powershell
+   # Replace "Netskope" with your certificate's subject
+   $cert = Get-ChildItem -Path Cert:\CurrentUser\Root | Where-Object {$_.Subject -like "*Netskope*"}
+   [System.IO.File]::WriteAllBytes(".devcontainer\corporate-certs\netskope-root.crt", $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
    ```
 
-2. **Environment Configuration**:
+3. **Export by thumbprint (more precise):**
 
-   ```dockerfile
-   ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-   ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-   ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+   ```powershell
+   # Replace with your certificate's thumbprint
+   $cert = Get-ChildItem -Path Cert:\CurrentUser\Root | Where-Object {$_.Thumbprint -eq "1234567890ABCDEF1234567890ABCDEF12345678"}
+   [System.IO.File]::WriteAllBytes(".devcontainer\corporate-certs\corporate-root.crt", $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
    ```
 
-3. **Post-Create Script**:
-   - Installs git-lfs via apt (avoids SSL issues during build)
-   - Configures git to use system certificates
-   - Installs Go dependencies, npm packages, etc.
+4. **Export multiple certificates:**
+   ```powershell
+   # Export all certificates matching a pattern
+   Get-ChildItem -Path Cert:\CurrentUser\Root | Where-Object {$_.Subject -like "*YourCompany*"} | ForEach-Object {
+       $filename = ".devcontainer\corporate-certs\$($_.FriendlyName -replace '[^a-zA-Z0-9]','-').crt"
+       [System.IO.File]::WriteAllBytes($filename, $_.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+       Write-Host "Exported: $filename"
+   }
+   ```
 
-### File Locations
+#### Method B: GUI Export
 
-```
-GitHub-migrator/
-├── .devcontainer/
-│   ├── Dockerfile                    # Builds custom image with certs
-│   ├── devcontainer.json            # References Dockerfile
-│   ├── corporate-certs/             # ⚠️ GIT-IGNORED - Your certs go here
-│   │   ├── root-ca.crt
-│   │   ├── intermediate-ca.crt
-│   │   └── proxy-ca.crt
-│   ├── post-create.sh               # Post-container setup
-│   └── CERTIFICATE_SETUP.md         # This file
-└── .gitignore                       # Excludes corporate-certs/
-```
+1. **Open Certificate Manager** (`certmgr.msc`)
 
-**Security Notes:**
+2. **Navigate to the certificate:**
 
-- `.devcontainer/corporate-certs/` is in `.gitignore`
-- Certificates are NEVER committed to git
-- Each developer sets up their own certificates locally
-- Safe to share the repo without exposing certificates
+   - Trusted Root Certification Authorities → Certificates
+   - Find your corporate certificate
 
----
+3. **Export the certificate:**
+   - Right-click the certificate
+   - Select "All Tasks" → "Export"
+   - Click "Next" in the Certificate Export Wizard
+   - Select "DER encoded binary X.509 (.CER)"
+   - Click "Next"
+   - Save to: `.devcontainer\corporate-certs\certificate-name.crt`
+   - Click "Next" then "Finish"
 
-## Common Proxy/SSL Inspection Tools
-
-### Netskope
-
-```bash
-# macOS
-security find-certificate -c "netskope" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/netskope-ca.crt
-
-# You may need multiple Netskope certificates:
-security find-certificate -c "caadmin.netskope.com" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/netskope-admin-ca.crt
-```
-
-### Zscaler
-
-```bash
-# macOS
-security find-certificate -c "Zscaler" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/zscaler-root-ca.crt
-```
-
-### Cisco Umbrella
-
-```bash
-# macOS
-security find-certificate -c "Cisco Umbrella" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/cisco-umbrella-ca.crt
-```
-
----
-
-## Proxy Configuration
-
-### Docker Desktop Proxy Setup
-
-If your organization uses an HTTP/HTTPS proxy:
-
-1. **macOS**:
-
-   - Docker Desktop → Settings → Resources → Proxies
-   - Enable "Manual proxy configuration"
-   - Set HTTP Proxy: `http://proxy.company.com:8080`
-   - Set HTTPS Proxy: `http://proxy.company.com:8080`
-   - Set No Proxy: `localhost,127.0.0.1,.local`
-
-2. **Windows**:
-   - Docker Desktop → Settings → Resources → Proxies
-   - Same configuration as macOS
-
-### Environment Variables
-
-The devcontainer automatically forwards proxy settings from your host:
-
-```json
-// In devcontainer.json
-"remoteEnv": {
-  "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
-  "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
-  "NO_PROXY": "${localEnv:NO_PROXY}"
-}
-```
-
-**Set on your host:**
-
-```bash
-# macOS/Linux (~/.zshrc or ~/.bashrc)
-export HTTP_PROXY="http://proxy.company.com:8080"
-export HTTPS_PROXY="http://proxy.company.com:8080"
-export NO_PROXY="localhost,127.0.0.1,.local,.company.com"
-```
+**Note:** Rename `.cer` files to `.crt` if needed:
 
 ```powershell
-# Windows (PowerShell Profile)
-$env:HTTP_PROXY="http://proxy.company.com:8080"
-$env:HTTPS_PROXY="http://proxy.company.com:8080"
-$env:NO_PROXY="localhost,127.0.0.1,.local"
+Rename-Item ".devcontainer\corporate-certs\certificate.cer" -NewName "certificate.crt"
+```
+
+### Step 3: Verify Export (Windows)
+
+```powershell
+# List exported certificates
+Get-ChildItem -Path ".devcontainer\corporate-certs\" -Filter "*.crt"
+
+# View certificate details
+Get-Content ".devcontainer\corporate-certs\corporate-root.crt" -Raw
+```
+
+You should see PEM-encoded certificate data starting with:
+
+```
+-----BEGIN CERTIFICATE-----
+```
+
+If you see binary data, convert it:
+
+```powershell
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(".devcontainer\corporate-certs\binary-cert.crt")
+$pemCert = "-----BEGIN CERTIFICATE-----`n" + [Convert]::ToBase64String($cert.RawData, [System.Base64FormattingOptions]::InsertLineBreaks) + "`n-----END CERTIFICATE-----"
+Set-Content -Path ".devcontainer\corporate-certs\corporate-root.crt" -Value $pemCert
 ```
 
 ---
 
-## Testing & Verification
+## macOS Setup
 
-### Before Building Container
+### Step 1: Identify Corporate Certificates
+
+#### Method A: Using Keychain Access GUI
+
+1. **Open Keychain Access:**
+
+   - Press `Cmd + Space`
+   - Type: "Keychain Access"
+   - Press Enter
+
+2. **Select the appropriate keychain:**
+
+   - Click "System" in the left sidebar (for system-wide certificates)
+   - Or click "login" (for user-specific certificates)
+
+3. **Find corporate certificates:**
+
+   - Look in the "Certificates" category
+   - Search for your organization name or proxy vendor (Netskope, Zscaler, etc.)
+   - Corporate certificates often have "Root CA" or your company name in the title
+
+4. **Note the certificate name** (you'll use this for export)
+
+#### Method B: Using Terminal
+
+1. **List all system certificates:**
+
+   ```bash
+   security find-certificate -a -p /Library/Keychains/System.keychain
+   ```
+
+2. **List all user certificates:**
+
+   ```bash
+   security find-certificate -a -p ~/Library/Keychains/login.keychain-db
+   ```
+
+3. **Search for specific certificates:**
+   ```bash
+   # Search for certificates containing "Netskope"
+   security find-certificate -a -c "Netskope" /Library/Keychains/System.keychain
+   ```
+
+### Step 2: Export Certificates
+
+#### Method A: Terminal Export (Recommended)
+
+1. **Create the certificate directory:**
+
+   ```bash
+   mkdir -p .devcontainer/corporate-certs
+   ```
+
+2. **Export by certificate name:**
+
+   ```bash
+   # Replace "Netskope" with your certificate's common name
+   security find-certificate -c "Netskope" -a -p > .devcontainer/corporate-certs/netskope-root.crt
+   ```
+
+3. **Export from specific keychain:**
+
+   ```bash
+   # From System keychain
+   security find-certificate -c "Your Corp Root CA" -a -p /Library/Keychains/System.keychain > .devcontainer/corporate-certs/corp-root.crt
+
+   # From login keychain
+   security find-certificate -c "Your Corp Root CA" -a -p ~/Library/Keychains/login.keychain-db > .devcontainer/corporate-certs/corp-root.crt
+   ```
+
+4. **Export multiple certificates:**
+
+   ```bash
+   # Export all certificates matching a pattern
+   for cert_name in "Netskope Root CA" "Company Intermediate CA"; do
+       filename=$(echo "$cert_name" | tr '[:upper:] ' '[:lower:]-')
+       security find-certificate -c "$cert_name" -a -p > ".devcontainer/corporate-certs/${filename}.crt"
+       echo "Exported: ${filename}.crt"
+   done
+   ```
+
+5. **Export by SHA-1 fingerprint:**
+
+   ```bash
+   # First, find the certificate's SHA-1
+   security find-certificate -a -Z /Library/Keychains/System.keychain | grep -A 1 "Netskope"
+
+   # Then export using the hash
+   security find-certificate -Z -p -a /Library/Keychains/System.keychain | \
+       awk '/^SHA-1 hash: YOUR_HASH/{p=1} p&&/-----BEGIN/{print; f=1} f' | \
+       awk '/-----END/{print; exit} {print}' > .devcontainer/corporate-certs/cert.crt
+   ```
+
+#### Method B: Keychain Access GUI Export
+
+1. **Open Keychain Access** (`Cmd + Space` → "Keychain Access")
+
+2. **Select the keychain:**
+
+   - Click "System" or "login" in the left sidebar
+
+3. **Find and select your corporate certificate**
+
+4. **Export the certificate:**
+   - Right-click the certificate
+   - Select "Export [Certificate Name]..."
+   - File Format: Select "Privacy Enhanced Mail (.pem)"
+   - Save location: `.devcontainer/corporate-certs/`
+   - Name: `corporate-root.crt`
+   - Click "Save"
+   - Enter your macOS password if prompted
+
+**Note:** If you exported as `.pem`, rename to `.crt`:
 
 ```bash
-# Verify certificates are in the correct location
+mv .devcontainer/corporate-certs/certificate.pem .devcontainer/corporate-certs/certificate.crt
+```
+
+### Step 3: Verify Export (macOS)
+
+```bash
+# List exported certificates
+ls -lh .devcontainer/corporate-certs/
+
+# View certificate details
+openssl x509 -in .devcontainer/corporate-certs/corporate-root.crt -text -noout
+
+# Verify certificate format
+head -n 1 .devcontainer/corporate-certs/corporate-root.crt
+```
+
+You should see output starting with:
+
+```
+-----BEGIN CERTIFICATE-----
+```
+
+---
+
+## Verification
+
+### Before Building the Container
+
+Verify certificates are in the correct location:
+
+```bash
+# Unix/macOS/Linux
 ls -la .devcontainer/corporate-certs/
 
-# Check certificate format (should show details, not binary)
-for cert in .devcontainer/corporate-certs/*.crt; do
-  echo "=== $cert ==="
-  openssl x509 -in "$cert" -noout -subject -issuer
-done
-
-# Test if Docker can build with certificates
-docker build -f .devcontainer/Dockerfile -t test-devcontainer .
+# Windows PowerShell
+Get-ChildItem -Path ".devcontainer\corporate-certs\" -Recurse
 ```
 
-### After Container Builds
+Expected output:
 
-Open a terminal inside the devcontainer and run:
-
-```bash
-# 1. Check installed certificates
-ls -la /usr/local/share/ca-certificates/corporate/
-cat /etc/ssl/certs/ca-certificates.crt | grep "BEGIN CERTIFICATE" | wc -l
-
-# 2. Test HTTPS connections
-curl -I https://github.com
-curl -I https://registry.npmjs.org
-curl -I https://proxy.golang.org
-
-# 3. Test git
-git ls-remote https://github.com/golang/go.git HEAD
-
-# 4. Test npm
-npm config get registry
-npm ping
-
-# 5. Test Go modules
-go env GOPROXY
-go list -m golang.org/x/tools@latest
-
-# 6. Check environment variables
-echo $SSL_CERT_FILE
-echo $CURL_CA_BUNDLE
-echo $NODE_EXTRA_CA_CERTS
+```
+corporate-certs/
+├── netskope-root.crt
+├── company-intermediate.crt
+└── corp-proxy.crt
 ```
 
-### Troubleshooting Test
+### After Building the Container
 
-```bash
-# Test with verbose SSL output
-curl -v https://github.com 2>&1 | grep -i "SSL\|certificate"
+Once the DevContainer is built and running:
 
-# Check which certificates are being used
-openssl s_client -connect github.com:443 -showcerts
+1. **Check certificates are installed:**
 
-# Verify certificate chain
-openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
-  /usr/local/share/ca-certificates/corporate/your-cert.crt
+   ```bash
+   ls -la /usr/local/share/ca-certificates/corporate/
+   ```
+
+2. **Verify certificates in bundle:**
+
+   ```bash
+   grep -r "BEGIN CERTIFICATE" /usr/local/share/ca-certificates/corporate/
+   ```
+
+3. **Test certificate trust:**
+
+   ```bash
+   # Test with curl (replace with your corporate domain)
+   curl -v https://github.com
+
+   # Test with Go
+   go env -w GOPRIVATE=""
+   go get -v github.com/google/uuid@latest
+
+   # Test with npm
+   npm config get cafile
+   npm install --dry-run express
+   ```
+
+4. **Check environment variables:**
+   ```bash
+   echo $SSL_CERT_FILE
+   echo $CURL_CA_BUNDLE
+   echo $NODE_EXTRA_CA_CERTS
+   ```
+
+Expected output:
+
+```
+/etc/ssl/certs/ca-certificates.crt
+/etc/ssl/certs/ca-certificates.crt
+/etc/ssl/certs/ca-certificates.crt
 ```
 
 ---
 
 ## Troubleshooting
 
-### Issue: "SSL certificate problem: self-signed certificate in certificate chain"
+### Certificate Errors Still Occur
 
-**Cause**: Missing corporate certificate or SSL inspection proxy certificate
+**Problem:** Still seeing SSL certificate verification errors after setup.
 
-**Solutions**:
+**Solutions:**
 
-1. Identify which certificate is missing:
-   ```bash
-   curl -v https://github.com 2>&1 | grep "issuer:"
-   ```
-2. Export that specific certificate to `.devcontainer/corporate-certs/`
-3. **Important**: If using SSL inspection proxy (Netskope, Zscaler), you MUST export that certificate
-4. Rebuild container: `Dev Containers: Rebuild Container`
-
-### Issue: Container builds but features fail to install
-
-**Cause**: Certificates not installed before features run
-
-**Solution**: This should be automatic with the Dockerfile approach. Verify:
-
-```bash
-# Check Dockerfile copies certificates before feature installation
-cat .devcontainer/Dockerfile | grep -A5 "COPY.*corporate-certs"
-```
-
-### Issue: Certificates not found in container
-
-**Cause**: Certificates not in `.devcontainer/corporate-certs/` or wrong format
-
-**Check**:
-
-```bash
-# Verify certificates exist locally
-ls -la .devcontainer/corporate-certs/*.crt
-
-# Verify they're PEM format
-file .devcontainer/corporate-certs/*.crt
-# Should show: "PEM certificate" not "data"
-
-# Check inside container
-docker run --rm -v $(pwd)/.devcontainer/corporate-certs:/certs alpine ls -la /certs
-```
-
-### Issue: "Permission denied" when copying certificates
-
-**macOS Solution**:
-
-```bash
-# Export from Keychain doesn't require sudo
-security find-certificate -c "CertName" -p /Library/Keychains/System.keychain \
-  > .devcontainer/corporate-certs/cert.crt
-```
-
-**Windows Solution**:
-
-- Use Certificate Manager (`certmgr.msc`) - no admin rights needed
-- Export to user-writable location first, then copy
-
-### Issue: npm/go/git still fail with SSL errors
-
-**Check environment variables**:
-
-```bash
-# Inside container
-env | grep -E "SSL|CERT|CA"
-
-# Should see:
-# SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-# CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-# NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
-```
-
-**Manually configure if needed**:
-
-```bash
-# Git
-git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
-
-# npm
-npm config set cafile /etc/ssl/certs/ca-certificates.crt
-
-# Go (should work automatically with SSL_CERT_FILE)
-go env -w GOINSECURE=none  # Ensure SSL verification is on
-```
-
-### Issue: Certificate file doesn't work
-
-**Check format:**
-
-```bash
-# Should output certificate details in readable text
-openssl x509 -in certificate.crt -text -noout
-
-# If you get an error, try DER format:
-openssl x509 -inform der -in certificate.cer -text -noout
-
-# Convert DER to PEM if needed:
-openssl x509 -inform der -in certificate.cer -outform pem -out certificate.crt
-```
-
-### Issue: Multiple certificates in one file (certificate bundle)
-
-**Split them into separate files:**
-
-```bash
-# If you have a bundle file (ca-bundle.crt), split it:
-csplit -f cert- ca-bundle.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
-
-# Rename and move to certs directory:
-mkdir -p .devcontainer/corporate-certs
-mv cert-01 .devcontainer/corporate-certs/root-ca.crt
-mv cert-02 .devcontainer/corporate-certs/intermediate-ca.crt
-```
-
-Or keep as a single file - both approaches work.
-
-### Issue: Windows certificate export creates .cer file
-
-**Solution**:
-
-```powershell
-# Rename .cer to .crt
-Get-ChildItem .devcontainer\corporate-certs\*.cer | Rename-Item -NewName {$_.Name -replace '\.cer$','.crt'}
-
-# Verify they're PEM format (Base64), not DER (binary)
-Get-Content .devcontainer\corporate-certs\cert.crt -Head 1
-# Should show: -----BEGIN CERTIFICATE-----
-
-# If binary, convert DER to PEM:
-openssl x509 -inform der -in cert.cer -outform pem -out cert.crt
-```
-
-### Issue: Multiple certificates in one file (bundle)
-
-**Solution - Split into separate files**:
-
-```bash
-# Use csplit to split by certificate markers
-csplit -f .devcontainer/corporate-certs/cert- \
-  ca-bundle.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
-
-# Rename with meaningful names
-mv .devcontainer/corporate-certs/cert-01 .devcontainer/corporate-certs/root-ca.crt
-mv .devcontainer/corporate-certs/cert-02 .devcontainer/corporate-certs/intermediate-ca.crt
-```
-
-**Or keep as bundle** (also works):
-
-```bash
-# Just ensure it has .crt extension
-cp ca-bundle.pem .devcontainer/corporate-certs/ca-bundle.crt
-```
-
-### Issue: Devcontainer works but Codespaces fails
-
-**Cause**: Codespaces doesn't have access to your local `.devcontainer/corporate-certs/`
-
-**Solution**: This is expected behavior. The Dockerfile handles missing certificates gracefully:
-
-```dockerfile
-# Builds successfully even without certificates
-RUN if [ -n "$(ls -A /tmp/corporate-certs-temp/*.crt 2>/dev/null)" ]; then
-    cp /tmp/corporate-certs-temp/*.crt /usr/local/share/ca-certificates/corporate/
-fi
-```
-
-**For Codespaces**:
-
-- Use without corporate certificates if possible
-- Or use GitHub Codespaces secrets to inject certificates
-- Or set `GIT_SSL_NO_VERIFY=true` (not recommended)
-
----
-
-## Team Onboarding
-
-When a new developer joins:
-
-### For the New Developer
-
-1. **Clone the repository**:
+1. **Verify certificate format:**
 
    ```bash
-   git clone https://github.com/your-org/GitHub-migrator.git
-   cd GitHub-migrator
+   # Check if certificate is PEM format
+   head -n 1 .devcontainer/corporate-certs/*.crt
    ```
 
-2. **Export corporate certificates** (follow Quick Start for your OS above)
+   Should show: `-----BEGIN CERTIFICATE-----`
 
-3. **Verify setup**:
+2. **Check for multiple certificates in chain:**
+   You may need to export both root and intermediate certificates:
 
    ```bash
-   ls -la .devcontainer/corporate-certs/
-   # Should see your .crt files
+   # Count certificates in file
+   grep -c "BEGIN CERTIFICATE" .devcontainer/corporate-certs/your-cert.crt
    ```
 
-4. **Open in devcontainer**:
-
-   - VS Code: Reopen in Container
-   - Wait for build and post-create script
-
-5. **Verify it works**:
+3. **Rebuild without cache:**
    ```bash
-   curl -I https://github.com
-   go version
-   node --version
+   # In VS Code: Ctrl+Shift+P (Cmd+Shift+P on macOS)
+   # Run: "Dev Containers: Rebuild Container Without Cache"
    ```
 
-### For Documentation Maintainers
+### Certificate Not Found During Export
 
-Update this file if:
+**Problem:** Can't find corporate certificate in your system.
 
-- Certificate export process changes
-- New proxy tools are introduced (e.g., new SSL inspection software)
-- New OS-specific issues are discovered
-- Build process changes
+**Solutions:**
+
+1. **Windows - Check all certificate stores:**
+
+   ```powershell
+   # Check Current User store
+   Get-ChildItem -Path Cert:\CurrentUser\Root
+
+   # Check Local Machine store (run as Admin)
+   Get-ChildItem -Path Cert:\LocalMachine\Root
+
+   # Check Intermediate Certificates
+   Get-ChildItem -Path Cert:\CurrentUser\CA
+   ```
+
+2. **macOS - Check all keychains:**
+
+   ```bash
+   # System keychain
+   security find-certificate -a /Library/Keychains/System.keychain
+
+   # User login keychain
+   security find-certificate -a ~/Library/Keychains/login.keychain-db
+
+   # System Roots
+   security find-certificate -a /System/Library/Keychains/SystemRootCertificates.keychain
+   ```
+
+3. **Contact your IT department:**
+   - Ask for the corporate root CA certificate file
+   - They may provide it as `.cer`, `.pem`, or `.crt` format
+
+### Wrong Certificate Format
+
+**Problem:** Certificate is in DER/binary format instead of PEM.
+
+**Solution - Convert to PEM:**
+
+```bash
+# Using openssl (available on macOS/Linux, or Git Bash on Windows)
+openssl x509 -inform DER -in certificate.cer -out certificate.crt -outform PEM
+
+# Verify conversion
+file certificate.crt
+# Should output: "PEM certificate"
+```
+
+### Build Fails During Certificate Installation
+
+**Problem:** Dockerfile fails when copying certificates.
+
+**Solutions:**
+
+1. **Check directory exists:**
+
+   ```bash
+   mkdir -p .devcontainer/corporate-certs
+   ```
+
+2. **Verify file permissions:**
+
+   ```bash
+   # Unix/macOS
+   chmod 644 .devcontainer/corporate-certs/*.crt
+
+   # Windows PowerShell
+   icacls ".devcontainer\corporate-certs\*.crt" /grant Everyone:R
+   ```
+
+3. **Check file extensions:**
+   Only `.crt` files are copied. Rename if needed:
+
+   ```bash
+   # Rename .pem to .crt
+   mv cert.pem cert.crt
+
+   # Rename .cer to .crt
+   mv cert.cer cert.crt
+   ```
+
+### Git Still Fails with SSL Errors
+
+**Problem:** Git operations fail despite certificates being installed.
+
+**Solutions:**
+
+1. **Check git configuration:**
+
+   ```bash
+   git config --global --get http.sslCAInfo
+   # Should output: /etc/ssl/certs/ca-certificates.crt
+   ```
+
+2. **Manually configure git:**
+
+   ```bash
+   git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
+   git config --global http.sslVerify true
+   ```
+
+3. **Verify post-create script ran:**
+   ```bash
+   cat ~/.gitconfig
+   ```
+
+### Go Module Downloads Fail
+
+**Problem:** `go get` or `go mod download` fails with certificate errors.
+
+**Solutions:**
+
+1. **Verify Go environment:**
+
+   ```bash
+   go env | grep -i proxy
+   go env | grep -i sum
+   ```
+
+2. **Set Go proxy explicitly:**
+
+   ```bash
+   go env -w GOPROXY=https://proxy.golang.org,direct
+   go env -w GOSUMDB=sum.golang.org
+   ```
+
+3. **Test with verbose output:**
+   ```bash
+   go get -v -x github.com/google/uuid@latest
+   ```
+
+### npm/Node.js Certificate Errors
+
+**Problem:** npm install fails with SSL errors.
+
+**Solutions:**
+
+1. **Verify Node environment:**
+
+   ```bash
+   echo $NODE_EXTRA_CA_CERTS
+   # Should output: /etc/ssl/certs/ca-certificates.crt
+   ```
+
+2. **Configure npm explicitly:**
+
+   ```bash
+   npm config set cafile /etc/ssl/certs/ca-certificates.crt
+   npm config set strict-ssl true
+   ```
+
+3. **Test npm configuration:**
+   ```bash
+   npm config get cafile
+   npm config get strict-ssl
+   ```
 
 ---
 
 ## Advanced Configuration
 
-### Custom Certificate Paths
+### Using Environment-Specific Certificates
 
-If your organization stores certificates elsewhere:
+If you work in multiple environments (office, home, VPN), you can maintain separate certificate sets:
 
-```bash
-# Copy from custom location
-cp /path/to/corporate/certs/*.crt .devcontainer/corporate-certs/
+**Directory structure:**
 
-# Note: Do not use symlinks. The Dockerfile requires `.devcontainer/corporate-certs` to be a real directory with certificate files inside.
-# Only copying files is supported:
-# cp /path/to/certs/*.crt .devcontainer/corporate-certs/
+```
+.devcontainer/
+└── corporate-certs/
+    ├── office/
+    │   ├── office-root.crt
+    │   └── office-proxy.crt
+    ├── vpn/
+    │   └── vpn-root.crt
+    └── current -> office/  # Symlink to active set
 ```
 
-### Automated Certificate Export Script
+**Setup:**
 
-Create `.devcontainer/export-certs.sh`:
+```bash
+# macOS/Linux
+ln -sf office .devcontainer/corporate-certs/current
+
+# Windows (PowerShell, run as Admin)
+New-Item -ItemType SymbolicLink -Path ".devcontainer\corporate-certs\current" -Target "office"
+```
+
+### Certificate Chain Files
+
+If you have a full certificate chain in one file:
+
+1. **Verify chain:**
+
+   ```bash
+   # Count certificates
+   grep -c "BEGIN CERTIFICATE" chain.crt
+   ```
+
+2. **Split if needed:**
+
+   ```bash
+   # Split chain into individual files
+   csplit -f cert- -b %02d.crt chain.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
+
+   # Move to corporate-certs
+   mv cert-*.crt .devcontainer/corporate-certs/
+   ```
+
+3. **Or use the chain as-is:**
+   ```bash
+   cp chain.crt .devcontainer/corporate-certs/corporate-chain.crt
+   ```
+
+### Automated Certificate Export
+
+**macOS - Create a script:**
 
 ```bash
 #!/bin/bash
-# Automatically export common corporate certificates
+# export-certs.sh
 
-mkdir -p .devcontainer/corporate-certs
+CERT_DIR=".devcontainer/corporate-certs"
+CERT_NAMES=("Netskope Root CA" "Company Intermediate CA")
 
-# macOS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    security find-certificate -c "YourCompany Root" -p /Library/Keychains/System.keychain \
-      > .devcontainer/corporate-certs/company-root-ca.crt 2>/dev/null
+mkdir -p "$CERT_DIR"
 
-    security find-certificate -c "netskope" -p /Library/Keychains/System.keychain \
-      > .devcontainer/corporate-certs/netskope-ca.crt 2>/dev/null
-fi
+for cert in "${CERT_NAMES[@]}"; do
+    filename=$(echo "$cert" | tr '[:upper:] ' '[:lower:]-')
+    echo "Exporting: $cert"
+    security find-certificate -c "$cert" -a -p > "$CERT_DIR/${filename}.crt"
+done
 
-# Verify
-ls -la .devcontainer/corporate-certs/*.crt
-echo "✓ Certificates exported"
+echo "✓ Certificate export complete"
+ls -lh "$CERT_DIR"
 ```
 
-### Disable SSL Verification (Emergency Only)
+**Windows - Create a PowerShell script:**
 
-**⚠️ NOT RECOMMENDED - Security risk!**
+```powershell
+# export-certs.ps1
 
-If you need to temporarily bypass SSL for testing:
+$certDir = ".devcontainer\corporate-certs"
+$certSubjects = @("*Netskope*", "*YourCompany*")
 
-```json
-// devcontainer.json - Add to containerEnv
-"containerEnv": {
-  "GIT_SSL_NO_VERIFY": "true",
-  "NODE_TLS_REJECT_UNAUTHORIZED": "0",
-  "GOPROXY": "direct",
-  "GOSUMDB": "off"
+New-Item -Path $certDir -ItemType Directory -Force | Out-Null
+
+foreach ($subject in $certSubjects) {
+    Get-ChildItem -Path Cert:\CurrentUser\Root | Where-Object {$_.Subject -like $subject} | ForEach-Object {
+        $filename = "$certDir\$($_.FriendlyName -replace '[^a-zA-Z0-9]','-').crt"
+        [System.IO.File]::WriteAllBytes($filename, $_.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+        Write-Host "✓ Exported: $filename"
+    }
 }
+
+Get-ChildItem -Path $certDir
 ```
 
----
+### Corporate Proxy Configuration
 
-## Additional Resources
+If you also need to configure proxy settings:
 
-- [OpenSSL Certificate Verification](https://www.openssl.org/docs/man1.1.1/man1/verify.html)
-- [Dev Containers Specification](https://containers.dev/)
-- [Docker Multi-stage Builds](https://docs.docker.com/build/building/multi-stage/)
-- [CA Certificates in Debian](https://wiki.debian.org/Self-Signed_Certificate)
+1. **Set proxy environment variables** (already configured in `devcontainer.json`):
 
-## Need Help?
-
-1. **Check the logs**:
-
-   - VS Code: Output → Dev Containers
-   - Docker Desktop: Troubleshoot → View Logs
-
-2. **Verify certificates locally**:
-
-   ```bash
-   for cert in .devcontainer/corporate-certs/*.crt; do
-     openssl x509 -in "$cert" -text -noout | head -20
-   done
+   ```json
+   "remoteEnv": {
+     "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+     "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+     "NO_PROXY": "${localEnv:NO_PROXY}"
+   }
    ```
 
-3. **Test Docker build**:
+2. **Set on host before opening container:**
 
    ```bash
-   docker build -f .devcontainer/Dockerfile -t test .
-   ```
+   # macOS/Linux
+   export HTTP_PROXY=http://proxy.company.com:8080
+   export HTTPS_PROXY=http://proxy.company.com:8080
+   export NO_PROXY=localhost,127.0.0.1,.company.com
 
-4. **Contact your IT department** for:
-   - Correct certificate names
-   - Proxy configuration
-   - SSL inspection tool details
+   # Windows PowerShell
+   $env:HTTP_PROXY="http://proxy.company.com:8080"
+   $env:HTTPS_PROXY="http://proxy.company.com:8080"
+   $env:NO_PROXY="localhost,127.0.0.1,.company.com"
+   ```
 
 ---
 
-**Last Updated**: November 2025
-**Maintained by**: DevOps Team
-**Questions?**: Open an issue or contact #devops-help
+## Security Notes
+
+### Certificate Privacy
+
+- ⚠️ **Corporate certificates are in `.gitignore`** - they will not be committed to version control
+- ✅ Safe to have certificates in your local `.devcontainer/corporate-certs/` directory
+- ❌ **Never commit certificates to public repositories**
+- ✅ Corporate certificates are typically public keys (safe to share within organization)
+
+### Best Practices
+
+1. **Keep certificates updated:** Export fresh certificates if they're rotated by IT
+2. **Use read-only permissions:** Prevent accidental modification
+3. **Document certificate sources:** Note where each certificate came from
+4. **Verify before trusting:** Ensure certificates are from legitimate sources
+
+---
+
+## Support
+
+### Getting Help
+
+1. **Check container build logs:**
+
+   ```
+   View → Command Palette → "Dev Containers: Show Container Log"
+   ```
+
+2. **Verify certificate installation:**
+
+   ```bash
+   update-ca-certificates --verbose
+   ```
+
+3. **Contact your IT department** if:
+   - You cannot locate corporate certificates
+   - You need specific proxy configurations
+   - You need additional security policies
+
+### Additional Resources
+
+- [Docker DevContainer Documentation](https://code.visualstudio.com/docs/devcontainers/containers)
+- [OpenSSL Certificate Commands](https://www.openssl.org/docs/man1.1.1/man1/x509.html)
+- [Git SSL Configuration](https://git-scm.com/docs/git-config#Documentation/git-config.txt-httpsslCAInfo)
+- [Node.js TLS/SSL](https://nodejs.org/api/tls.html)
+
+---
+
+## Summary
+
+### Quick Checklist
+
+- [ ] Identified corporate certificate(s) on your system
+- [ ] Created `.devcontainer/corporate-certs/` directory
+- [ ] Exported certificate(s) to the directory in `.crt` format
+- [ ] Verified certificates are PEM-encoded (start with `-----BEGIN CERTIFICATE-----`)
+- [ ] Built/rebuilt the DevContainer
+- [ ] Verified certificate installation in container
+- [ ] Tested SSL connections (curl, git, go, npm)
+
+### Common Commands Reference
+
+| Task               | Windows                                 | macOS                                               |
+| ------------------ | --------------------------------------- | --------------------------------------------------- |
+| List certificates  | `Get-ChildItem Cert:\CurrentUser\Root`  | `security find-certificate -a`                      |
+| Export certificate | `Export-Certificate -FilePath cert.crt` | `security find-certificate -c "Name" -p > cert.crt` |
+| Verify format      | `Get-Content cert.crt`                  | `head -n 1 cert.crt`                                |
+| Test SSL           | `curl -v https://github.com`            | `curl -v https://github.com`                        |
+
+---
+
+For questions or issues with certificate setup, please refer to the [Troubleshooting](#troubleshooting) section or contact your organization's IT support.
