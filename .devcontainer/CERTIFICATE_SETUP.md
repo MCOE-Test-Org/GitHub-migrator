@@ -663,7 +663,6 @@ fi
 # Verify
 ls -la .devcontainer/corporate-certs/*.crt
 echo "✓ Certificates exported"
-````
 
 ### Disable SSL Verification (Emergency Only)
 
