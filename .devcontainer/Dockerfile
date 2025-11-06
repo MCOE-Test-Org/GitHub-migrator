@@ -32,3 +32,24 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
+# Install additional tools after certificates are configured
+# Install unzip and wget for downloading tools
+RUN apt-get update && apt-get install -y unzip wget && rm -rf /var/lib/apt/lists/*
+
+# Install tflint (after certificates are set up)
+RUN TFLINT_VERSION=$(curl -s https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//') && \
+    wget -q "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_amd64.zip" && \
+    unzip tflint_linux_amd64.zip -d /usr/local/bin && \
+    rm tflint_linux_amd64.zip && \
+    chmod +x /usr/local/bin/tflint && \
+    echo "tflint ${TFLINT_VERSION} installed"
+
+# Install terragrunt (after certificates are set up)
+RUN TERRAGRUNT_VERSION=$(curl -s https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//') && \
+    wget -q "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" -O /usr/local/bin/terragrunt && \
+    chmod +x /usr/local/bin/terragrunt && \
+    echo "terragrunt ${TERRAGRUNT_VERSION} installed"
+
+# Verify installations
+RUN tflint --version && terragrunt --version

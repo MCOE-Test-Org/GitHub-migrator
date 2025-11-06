@@ -66,18 +66,6 @@ openssl x509 -in .devcontainer/corporate-certs/root-ca.crt -text -noout
 
 ---
 
-**Accepted Formats:**
-- **PEM** (Privacy Enhanced Mail) - Text format, Base64 encoded
-  - Extensions: `.crt`, `.pem`, `.cer`
-  - Starts with: `-----BEGIN CERTIFICATE-----`
-  - Ends with: `-----END CERTIFICATE-----`
-  - ✅ This is the REQUIRED format for Linux containers
-
-- **DER** (Distinguished Encoding Rules) - Binary format
-  - Extensions: `.cer`, `.der`
-  - Binary file (not human-readable)
-  - ❌ Must be converted to PEM for container use
-
 **How to Identify Your Certificate Format:**
 
 ```bash
@@ -96,7 +84,9 @@ openssl x509 -in certificate.crt -text -noout
 ## Certificate Format Requirements
 
 **Accepted Formats:**
+
 - **PEM** (Privacy Enhanced Mail) - Text format, Base64 encoded
+
   - Extensions: `.crt`, `.pem`, `.cer`
   - Starts with: `-----BEGIN CERTIFICATE-----`
   - Ends with: `-----END CERTIFICATE-----`
@@ -108,6 +98,7 @@ openssl x509 -in certificate.crt -text -noout
   - ❌ Must be converted to PEM for container use
 
 **Certificate File Naming:**
+
 - Files MUST have `.crt` extension (e.g., `corporate-ca.crt`)
 - Multiple certificates can be stored as separate files
 - All `.crt` files in `.devcontainer/corporate-certs/` will be installed
@@ -134,10 +125,11 @@ openssl x509 -in certificate.crt -text -noout
 You typically need these certificates from your organization:
 
 1. **Root CA Certificate** - The top-level certificate authority
-2. **Intermediate CA Certificate(s)** - Middle certificates in the chain  
+2. **Intermediate CA Certificate(s)** - Middle certificates in the chain
 3. **SSL Inspection Proxy Certificate** - If using Netskope, Zscaler, etc.
 
 **How to find them:**
+
 - **macOS**: Open Keychain Access → System → Certificates
 - **Windows**: Run `certmgr.msc` → Trusted Root Certification Authorities
 - Look for certificates issued by your company name
@@ -203,11 +195,13 @@ done
 ### Step 4: Rebuild Devcontainer
 
 The Dockerfile will automatically:
+
 1. Copy all `.crt` files from `.devcontainer/corporate-certs/`
 2. Install them into the system trust store
 3. Configure environment variables for all tools
 
 **Rebuild the container:**
+
 - VS Code: `Cmd/Ctrl+Shift+P` → "Dev Containers: Rebuild Container"
 - Or: Delete container and reopen in container
 
@@ -220,6 +214,7 @@ The Dockerfile will automatically:
 The devcontainer uses a **multi-stage approach**:
 
 1. **Dockerfile Build Phase**:
+
    ```dockerfile
    # Copies certificates during image build
    COPY .devcontainer/corporate-certs /tmp/corporate-certs-temp
@@ -228,6 +223,7 @@ The devcontainer uses a **multi-stage approach**:
    ```
 
 2. **Environment Configuration**:
+
    ```dockerfile
    ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
    ENV CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
@@ -256,6 +252,7 @@ GitHub-migrator/
 ```
 
 **Security Notes:**
+
 - `.devcontainer/corporate-certs/` is in `.gitignore`
 - Certificates are NEVER committed to git
 - Each developer sets up their own certificates locally
@@ -280,7 +277,7 @@ security find-certificate -c "caadmin.netskope.com" -p /Library/Keychains/System
 ### Zscaler
 
 ```bash
-# macOS  
+# macOS
 security find-certificate -c "Zscaler" -p /Library/Keychains/System.keychain \
   > .devcontainer/corporate-certs/zscaler-root-ca.crt
 ```
@@ -302,6 +299,7 @@ security find-certificate -c "Cisco Umbrella" -p /Library/Keychains/System.keych
 If your organization uses an HTTP/HTTPS proxy:
 
 1. **macOS**:
+
    - Docker Desktop → Settings → Resources → Proxies
    - Enable "Manual proxy configuration"
    - Set HTTP Proxy: `http://proxy.company.com:8080`
@@ -415,6 +413,7 @@ openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
 **Cause**: Missing corporate certificate or SSL inspection proxy certificate
 
 **Solutions**:
+
 1. Identify which certificate is missing:
    ```bash
    curl -v https://github.com 2>&1 | grep "issuer:"
@@ -428,6 +427,7 @@ openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
 **Cause**: Certificates not installed before features run
 
 **Solution**: This should be automatic with the Dockerfile approach. Verify:
+
 ```bash
 # Check Dockerfile copies certificates before feature installation
 cat .devcontainer/Dockerfile | grep -A5 "COPY.*corporate-certs"
@@ -438,6 +438,7 @@ cat .devcontainer/Dockerfile | grep -A5 "COPY.*corporate-certs"
 **Cause**: Certificates not in `.devcontainer/corporate-certs/` or wrong format
 
 **Check**:
+
 ```bash
 # Verify certificates exist locally
 ls -la .devcontainer/corporate-certs/*.crt
@@ -453,6 +454,7 @@ docker run --rm -v $(pwd)/.devcontainer/corporate-certs:/certs alpine ls -la /ce
 ### Issue: "Permission denied" when copying certificates
 
 **macOS Solution**:
+
 ```bash
 # Export from Keychain doesn't require sudo
 security find-certificate -c "CertName" -p /Library/Keychains/System.keychain \
@@ -460,12 +462,14 @@ security find-certificate -c "CertName" -p /Library/Keychains/System.keychain \
 ```
 
 **Windows Solution**:
+
 - Use Certificate Manager (`certmgr.msc`) - no admin rights needed
 - Export to user-writable location first, then copy
 
 ### Issue: npm/go/git still fail with SSL errors
 
 **Check environment variables**:
+
 ```bash
 # Inside container
 env | grep -E "SSL|CERT|CA"
@@ -477,6 +481,7 @@ env | grep -E "SSL|CERT|CA"
 ```
 
 **Manually configure if needed**:
+
 ```bash
 # Git
 git config --global http.sslCAInfo /etc/ssl/certs/ca-certificates.crt
@@ -491,6 +496,7 @@ go env -w GOINSECURE=none  # Ensure SSL verification is on
 ### Issue: Certificate file doesn't work
 
 **Check format:**
+
 ```bash
 # Should output certificate details in readable text
 openssl x509 -in certificate.crt -text -noout
@@ -505,6 +511,7 @@ openssl x509 -inform der -in certificate.cer -outform pem -out certificate.crt
 ### Issue: Multiple certificates in one file (certificate bundle)
 
 **Split them into separate files:**
+
 ```bash
 # If you have a bundle file (ca-bundle.crt), split it:
 csplit -f cert- ca-bundle.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
@@ -520,6 +527,7 @@ Or keep as a single file - both approaches work.
 ### Issue: Windows certificate export creates .cer file
 
 **Solution**:
+
 ```powershell
 # Rename .cer to .crt
 Get-ChildItem .devcontainer\corporate-certs\*.cer | Rename-Item -NewName {$_.Name -replace '\.cer$','.crt'}
@@ -535,6 +543,7 @@ openssl x509 -inform der -in cert.cer -outform pem -out cert.crt
 ### Issue: Multiple certificates in one file (bundle)
 
 **Solution - Split into separate files**:
+
 ```bash
 # Use csplit to split by certificate markers
 csplit -f .devcontainer/corporate-certs/cert- \
@@ -546,6 +555,7 @@ mv .devcontainer/corporate-certs/cert-02 .devcontainer/corporate-certs/intermedi
 ```
 
 **Or keep as bundle** (also works):
+
 ```bash
 # Just ensure it has .crt extension
 cp ca-bundle.pem .devcontainer/corporate-certs/ca-bundle.crt
@@ -556,6 +566,7 @@ cp ca-bundle.pem .devcontainer/corporate-certs/ca-bundle.crt
 **Cause**: Codespaces doesn't have access to your local `.devcontainer/corporate-certs/`
 
 **Solution**: This is expected behavior. The Dockerfile handles missing certificates gracefully:
+
 ```dockerfile
 # Builds successfully even without certificates
 RUN if [ -n "$(ls -A /tmp/corporate-certs-temp/*.crt 2>/dev/null)" ]; then
@@ -564,6 +575,7 @@ fi
 ```
 
 **For Codespaces**:
+
 - Use without corporate certificates if possible
 - Or use GitHub Codespaces secrets to inject certificates
 - Or set `GIT_SSL_NO_VERIFY=true` (not recommended)
@@ -577,6 +589,7 @@ When a new developer joins:
 ### For the New Developer
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/your-org/GitHub-migrator.git
    cd GitHub-migrator
@@ -585,12 +598,14 @@ When a new developer joins:
 2. **Export corporate certificates** (follow Quick Start for your OS above)
 
 3. **Verify setup**:
+
    ```bash
    ls -la .devcontainer/corporate-certs/
    # Should see your .crt files
    ```
 
 4. **Open in devcontainer**:
+
    - VS Code: Reopen in Container
    - Wait for build and post-create script
 
@@ -604,6 +619,7 @@ When a new developer joins:
 ### For Documentation Maintainers
 
 Update this file if:
+
 - Certificate export process changes
 - New proxy tools are introduced (e.g., new SSL inspection software)
 - New OS-specific issues are discovered
@@ -617,7 +633,7 @@ Update this file if:
 
 If your organization stores certificates elsewhere:
 
-```bash
+````bash
 # Copy from custom location
 cp /path/to/corporate/certs/*.crt .devcontainer/corporate-certs/
 
@@ -639,7 +655,7 @@ mkdir -p .devcontainer/corporate-certs
 if [[ "$OSTYPE" == "darwin"* ]]; then
     security find-certificate -c "YourCompany Root" -p /Library/Keychains/System.keychain \
       > .devcontainer/corporate-certs/company-root-ca.crt 2>/dev/null
-    
+
     security find-certificate -c "netskope" -p /Library/Keychains/System.keychain \
       > .devcontainer/corporate-certs/netskope-ca.crt 2>/dev/null
 fi
@@ -647,7 +663,7 @@ fi
 # Verify
 ls -la .devcontainer/corporate-certs/*.crt
 echo "✓ Certificates exported"
-```
+````
 
 ### Disable SSL Verification (Emergency Only)
 
@@ -677,10 +693,12 @@ If you need to temporarily bypass SSL for testing:
 ## Need Help?
 
 1. **Check the logs**:
+
    - VS Code: Output → Dev Containers
    - Docker Desktop: Troubleshoot → View Logs
 
 2. **Verify certificates locally**:
+
    ```bash
    for cert in .devcontainer/corporate-certs/*.crt; do
      openssl x509 -in "$cert" -text -noout | head -20
@@ -688,6 +706,7 @@ If you need to temporarily bypass SSL for testing:
    ```
 
 3. **Test Docker build**:
+
    ```bash
    docker build -f .devcontainer/Dockerfile -t test .
    ```
@@ -699,6 +718,6 @@ If you need to temporarily bypass SSL for testing:
 
 ---
 
-**Last Updated**: November 2025  
-**Maintained by**: DevOps Team  
+**Last Updated**: November 2025
+**Maintained by**: DevOps Team
 **Questions?**: Open an issue or contact #devops-help

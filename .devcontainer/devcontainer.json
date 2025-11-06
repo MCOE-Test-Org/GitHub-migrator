@@ -21,7 +21,8 @@
         "bradlc.vscode-tailwindcss",
         "mtxr.sqltools",
         "mtxr.sqltools-driver-sqlite",
-        "GitHub.vscode-pull-request-github"
+        "GitHub.vscode-pull-request-github",
+        "hashicorp.terraform"
       ],
       "settings": {
         "go.toolsManagement.checkForUpdates": "local",
