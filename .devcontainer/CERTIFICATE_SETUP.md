@@ -633,7 +633,7 @@ Update this file if:
 
 If your organization stores certificates elsewhere:
 
-````bash
+```bash
 # Copy from custom location
 cp /path/to/corporate/certs/*.crt .devcontainer/corporate-certs/
 
