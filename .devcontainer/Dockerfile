@@ -71,8 +71,6 @@ RUN if [ "$TFLINT_VERSION" = "latest" ]; then \
     rm tflint_linux_amd64.zip && \
     chmod +x /usr/local/bin/tflint && \
     echo "tflint ${TFL_VERSION} installed"
-    chmod +x /usr/local/bin/tflint && \
-    echo "tflint ${TFL_VERSION} installed"
 
 # Install terragrunt (after certificates are set up)
 RUN if [ "$TERRAGRUNT_VERSION" = "latest" ]; then \
