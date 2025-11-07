@@ -69,9 +69,3 @@ touch data/.gitkeep
 echo -e "${GREEN}✓ Database directory initialized${NC}"
 
 echo -e "${GREEN}🎉 Devcontainer setup complete!${NC}"
-echo ""
-echo "Next steps:"
-echo "  1. Start the backend: make run (or 'air' for hot reload)"
-echo "  2. Start the frontend: cd web && npm run dev"
-echo "  3. Access the app at http://localhost:5173"
-echo ""

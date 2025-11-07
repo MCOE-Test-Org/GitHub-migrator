@@ -41,7 +41,6 @@ configs/config.local.yaml
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 *~

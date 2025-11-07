@@ -1,0 +1,128 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Go Backend",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/server",
+      "env": {},
+      "args": [],
+      "showLog": true,
+      "trace": "verbose"
+    },
+    {
+      "name": "Attach to Go Backend Process",
+      "type": "go",
+      "request": "attach",
+      "mode": "local",
+      "processId": "${command:pickProcess}"
+    },
+    {
+      "name": "Launch Go Backend (with config)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/server",
+      "env": {
+        "CONFIG_PATH": "${workspaceFolder}/configs/config.yaml"
+      },
+      "args": [],
+      "showLog": true,
+      "trace": "verbose"
+    },
+    {
+      "name": "Debug Go Tests",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}",
+      "env": {},
+      "args": [
+        "-test.v"
+      ],
+      "showLog": true
+    },
+    {
+      "name": "Debug Current Go Test",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "showLog": true
+    },
+    {
+      "name": "Launch Frontend (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./~/*": "${workspaceFolder}/web/node_modules/*",
+        "webpack:///./*": "${workspaceFolder}/web/*",
+        "webpack:///*": "*"
+      },
+      "preLaunchTask": "npm: dev - web"
+    },
+    {
+      "name": "Launch Frontend (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack:///./~/*": "${workspaceFolder}/web/node_modules/*",
+        "webpack:///./*": "${workspaceFolder}/web/*",
+        "webpack:///*": "*"
+      },
+      "preLaunchTask": "npm: dev - web"
+    },
+    {
+      "name": "Attach to Frontend (Chrome)",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true
+    },
+    {
+      "name": "Attach to Frontend (Edge)",
+      "type": "msedge",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (Backend + Frontend Chrome)",
+      "configurations": [
+        "Launch Go Backend",
+        "Launch Frontend (Chrome)"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "fullstack",
+        "order": 1
+      },
+      "stopAll": true
+    },
+    {
+      "name": "Full Stack (Backend + Frontend Edge)",
+      "configurations": [
+        "Launch Go Backend",
+        "Launch Frontend (Edge)"
+      ],
+      "presentation": {
+        "hidden": false,
+        "group": "fullstack",
+        "order": 2
+      },
+      "stopAll": true
+    }
+  ]
+}
