@@ -1,0 +1,146 @@
+{
+  // Go settings
+  "go.toolsManagement.autoUpdate": true,
+  "go.useLanguageServer": true,
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "workspace",
+  "go.formatTool": "goimports",
+  "go.formatFlags": [],
+  "go.testFlags": [
+    "-v",
+    "-race"
+  ],
+  "go.coverOnSave": false,
+  "go.coverageDecorator": {
+    "type": "gutter",
+    "coveredHighlightColor": "rgba(64,128,64,0.5)",
+    "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
+    "coveredGutterStyle": "blockblue",
+    "uncoveredGutterStyle": "slashyellow"
+  },
+  "gopls": {
+    "ui.semanticTokens": true,
+    "ui.completion.usePlaceholders": true,
+    "ui.diagnostic.analyses": {
+      "fieldalignment": false,
+      "shadow": true,
+      "unusedparams": true,
+      "unusedwrite": true
+    }
+  },
+  // JavaScript/TypeScript/React settings
+  "typescript.tsdk": "web/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "javascript.suggest.autoImports": true,
+  "typescript.suggest.autoImports": true,
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  // ESLint settings
+  "eslint.enable": true,
+  "eslint.workingDirectories": [
+    "./web"
+  ],
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  // Prettier settings (requires esbenp.prettier-vscode extension)
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": false,
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": false,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on"
+  },
+  // File associations
+  "files.associations": {
+    "*.env.example": "properties",
+    "*.yml": "yaml",
+    "Dockerfile*": "dockerfile"
+  },
+  // File exclusions
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.devcontainer/corporate-certs": true
+  },
+  // Search exclusions
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/logs": true,
+    "**/.git": true,
+    "**/vendor": true,
+    "**/.devcontainer/corporate-certs": true
+  },
+  // Editor settings
+  "editor.rulers": [
+    80,
+    120
+  ],
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": true,
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  // Tailwind CSS
+  "tailwindCSS.experimental.classRegex": [
+    [
+      "clsx\\(([^)]*)\\)",
+      "(?:'|\"|`)([^']*)(?:'|\"|`)"
+    ],
+    [
+      "cn\\(([^)]*)\\)",
+      "(?:'|\"|`)([^']*)(?:'|\"|`)"
+    ],
+    [
+      "cva\\(([^)]*)\\)",
+      "[\"'`]([^\"'`]*).*?[\"'`]"
+    ]
+  ],
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  // Terminal
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.defaultProfile.osx": "zsh",
+  "terminal.integrated.env.osx": {
+    "PATH": "${env:HOME}/go/bin:${env:PATH}"
+  },
+  "terminal.integrated.env.linux": {
+    "PATH": "${env:HOME}/go/bin:${env:PATH}"
+  },
+  // Git
+  "git.ignoreLimitWarning": true,
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+  // Docker
+  "docker.showStartPage": false,
+  // Project-specific settings
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "*.go": "${capture}_test.go",
+    "*.ts": "${capture}.test.ts, ${capture}.spec.ts",
+    "*.tsx": "${capture}.test.tsx, ${capture}.spec.tsx",
+    "package.json": "package-lock.json, tsconfig.json, tsconfig.node.json, vite.config.ts, postcss.config.js, tailwind.config.js, eslint.config.js",
+    "go.mod": "go.sum",
+    "docker-compose.yml": "Dockerfile, .dockerignore",
+    "README.md": "CONTRIBUTING.md, LICENSE"
+  },
+  "makefile.configureOnOpen": false
+}

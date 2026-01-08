@@ -1,0 +1,75 @@
+{
+  "name": "GitHub Migrator Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/github-cli": {
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-sqlite",
+        "GitHub.vscode-pull-request-github",
+        "hashicorp.terraform"
+      ],
+      "settings": {
+        "go.toolsManagement.checkForUpdates": "local",
+        "go.useLanguageServer": true,
+        "go.lintOnSave": "workspace",
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        }
+      }
+    }
+  },
+  "forwardPorts": [
+    8080,
+    5173
+  ],
+  "portsAttributes": {
+    "8080": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend Dev Server",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "containerEnv": {
+    "GHMIG_SERVER_PORT": "8080",
+    "GHMIG_DATABASE_TYPE": "sqlite",
+    "GHMIG_DATABASE_DSN": "${containerWorkspaceFolder}/data/migrator.db",
+    "GHMIG_LOGGING_LEVEL": "debug",
+    "GHMIG_LOGGING_FORMAT": "text",
+    "NODE_ENV": "development",
+    "GIT_SSL_NO_VERIFY": "false"
+  },
+  "remoteEnv": {
+    "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+    "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+    "NO_PROXY": "${localEnv:NO_PROXY}"
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/data,target=/workspaces/GitHub-migrator/data,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/logs,target=/workspaces/GitHub-migrator/logs,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/GitHub-migrator"
+}
